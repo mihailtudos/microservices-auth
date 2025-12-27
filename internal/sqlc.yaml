@@ -8,6 +8,10 @@ sql:
         package: "auth"
         out: "auth"
         sql_package: "pgx/v5"
+        output_files_suffix: ".gen"
+        output_db_file_name: "db.gen.go"
+        output_models_file_name: "models.gen.go"
+        output_querier_file_name: "querier.gen.go"
         overrides:
           # UUID
           - db_type: "uuid"
