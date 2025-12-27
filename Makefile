@@ -1,4 +1,13 @@
-LOCAL_BIN:=$(CURDIR)/bin
+include .env
+
+LOCAL_BIN := $(ROOT_DIR)/bin
+
+export ROOT_DIR := $(CURDIR)
+export GOOSE_MIGRATION_DIR := $(ROOT_DIR)/internal/migrations
+
+export GOOSE_MIGRATION_DIR
+export GOOSE_DRIVER
+export GOOSE_DBSTRING
 
 install-golangci-lint:
 	mkdir -p ./bin
@@ -26,3 +35,28 @@ generate-auth-api:
 	--go-grpc_out=pkg/auth_v1 --go-grpc_opt=paths=source_relative \
 	--plugin=protoc-gen-go-grpc=bin/protoc-gen-go-grpc \
 	api/auth_v1/auth.proto
+
+docker/up:
+	docker compose up -d
+
+docker/down:
+	docker compose down
+
+migrate/create:
+	chmod +x ./scripts/migrations/create.sh && \
+	sh ./scripts/migrations/create.sh
+
+migrate/up:
+	goose up --dir $(GOOSE_MIGRATION_DIR)
+
+migrate/down:
+	goose down --dir $(GOOSE_MIGRATION_DIR)
+
+server/run:
+	go run ./cmd/server/main.go
+
+client/run:
+	go run ./cmd/client/main.go
+
+sqlc/gen:
+	sqlc generate -f ./internal/sqlc.yaml
