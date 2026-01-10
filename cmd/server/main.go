@@ -23,8 +23,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const grpcPort = 50051
-
 var (
 	ErrMissingDBString = errors.New("failed to connect - DB string")
 	ErrPingDB          = errors.New("failed to ping DB")
@@ -194,7 +192,7 @@ func main() {
 
 	queries := auth.New(db)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", os.Getenv("PORT")))
 	if err != nil {
 		log.Fatal("failed to listen: %w", err)
 	}
