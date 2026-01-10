@@ -184,6 +184,10 @@ func setupDB(ctx context.Context) (*pgxpool.Pool, error) {
 }
 
 func main() {
+	if os.Getenv("PORT") == "" {
+		log.Fatal("port not provided\n")
+	}
+	
 	ctx := context.Background()
 
 	db, err := setupDB(ctx)
