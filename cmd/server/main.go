@@ -43,6 +43,7 @@ func HashPassword(password string) (string, error) {
 func (s *server) Create(ctx context.Context, req *desc.CreateRequest) (*desc.CreateResponse, error) {
 	ur := req.GetInfo()
 
+	fmt.Printf("user request: %+v\n", ur)
 	// userRoleID := "3face0d0-9f17-44be-87e8-ece2504bd2cd"
 	// roleUUID, err := uuid.Parse(userRoleID)
 	// if err != nil {
@@ -57,6 +58,7 @@ func (s *server) Create(ctx context.Context, req *desc.CreateRequest) (*desc.Cre
 	}
 
 	hash, _ := HashPassword(ur.Password)
+	fmt.Println("valid pw")
 
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -69,6 +71,7 @@ func (s *server) Create(ctx context.Context, req *desc.CreateRequest) (*desc.Cre
 	defer tx.Rollback(ctx)
 
 	q := s.queries.WithTx(tx)
+	fmt.Println("start tx")
 
 	adminRoleId, err := q.GetRoleByName(ctx, "admin")
 	if err != nil {
