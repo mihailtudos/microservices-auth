@@ -49,6 +49,8 @@ jobs:
     needs: test-and-build
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v6
       - name: Download generated code
@@ -114,7 +116,6 @@ jobs:
             echo "GOOSE_DBSTRING=\"$GOOSE_DBSTRING\"" > .env.prod
             echo "GOOSE_DRIVER=$GOOSE_DRIVER" >> .env.prod
             echo "PORT=$PORT" >> .env.prod
-
             export DOCKER_TAG=${DOCKER_TAG}
             ENV=prod task docker:prod:up
             docker logout
@@ -122,4 +123,4 @@ jobs:
           GOOSE_DBSTRING: ${{ secrets.GOOSE_DBSTRING }}
           GOOSE_DRIVER: ${{ secrets.GOOSE_DRIVER }}
           PORT: ${{ secrets.PORT }}
-          DOCKER_TAG: sha-${{ github.sha }}
+          DOCKER_TAG: ${{ needs.push-image.outputs.image_tag }}
