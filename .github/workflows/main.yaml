@@ -107,7 +107,7 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GOOSE_DBSTRING,GOOSE_DRIVER,PORT
+          envs: GOOSE_DBSTRING,GOOSE_DRIVER,PORT,DOCKER_TAG
           script: |
             cd /home/${{ secrets.REMOTE_USER }}/auth
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -115,9 +115,11 @@ jobs:
             echo "GOOSE_DRIVER=$GOOSE_DRIVER" >> .env.prod
             echo "PORT=$PORT" >> .env.prod
 
+            export DOCKER_TAG=${DOCKER_TAG}
             ENV=prod task docker:prod:up
             docker logout
         env:
           GOOSE_DBSTRING: ${{ secrets.GOOSE_DBSTRING }}
           GOOSE_DRIVER: ${{ secrets.GOOSE_DRIVER }}
           PORT: ${{ secrets.PORT }}
+          DOCKER_TAG: sha-${{ github.sha }}

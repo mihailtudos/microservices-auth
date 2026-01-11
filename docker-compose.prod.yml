@@ -1,13 +1,13 @@
 services:
   migrate:
-    image: tudosm/auth:latest
+    image: tudosm/auth:${DOCKER_TAG:-prod}
     platform: linux/amd64
     command: goose -dir ./internal/migrations postgres "${GOOSE_DBSTRING}" up
     depends_on:
       db:
         condition: service_healthy
   app:
-    image: tudosm/auth:latest
+    image: tudosm/auth:${DOCKER_TAG:-prod}
     platform: linux/amd64
     restart: always
     depends_on:
