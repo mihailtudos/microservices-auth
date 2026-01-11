@@ -137,7 +137,7 @@ tasks:
   docker:build:
     desc: Build local docker image
     cmds:
-      - docker build -t {{.IMAGE_NAME}}:{{.TAG}} .
+      - docker build -t {{.IMAGE_NAME}}:local .
 
   docker:login:
     desc: Login to Docker Hub
@@ -150,8 +150,9 @@ tasks:
       - docker buildx build --platform linux/amd64 -t {{.IMAGE_NAME}}:{{.TAG}} --push .
 
   docker:prod:up:
-    desc: Start production-like stack (DB + Migrations + App)
+    desc: Start production stack
     cmds:
+      - docker compose {{.COMPOSE_FILES}} pull
       - docker compose {{.COMPOSE_FILES}} up -d --force-recreate
 
   docker:prod:down:
