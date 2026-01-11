@@ -3,6 +3,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"log"
 	"time"
 
@@ -13,7 +16,6 @@ import (
 
 const (
 	address = "localhost:50051"
-	userID  = 12
 )
 
 func main() {
@@ -35,7 +37,27 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	r, err := c.Get(ctx, &desc.GetRequest{Id: userID})
+	key := make([]byte, 16)
+	rand.Read(key)
+	randonPassword := hex.EncodeToString(key)
+
+	u, err := c.Create(ctx, &desc.CreateRequest{
+		Info: &desc.UserRegistration{
+			Name:            "Mihail Tudos",
+			Email:           "mihail@example.com",
+			Password:        randonPassword,
+			PasswordConfirm: randonPassword,
+			Role:            desc.Role_ADMIN,
+		},
+	})
+
+	if err != nil {
+		log.Fatal("failed to create new user: ", err)
+	}
+
+	fmt.Printf("user created success: %s\n", u.Id)
+
+	r, err := c.Get(ctx, &desc.GetRequest{Id: u.Id})
 	if err != nil {
 		log.Fatal("failed to get user by id: ", err)
 	}

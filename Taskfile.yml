@@ -1,0 +1,213 @@
+version: "3"
+
+# Load variables from .env files based on the environment
+# Defaults to .env.local if no ENV is passed
+dotenv:
+  - .env.{{.ENV | default "local"}}
+
+env:
+  PATH: "{{.PWD}}/{{.LOCAL_BIN}}:{{.PATH}}"
+
+vars:
+  ENV: '{{.ENV | default "local"}}'
+  LOCAL_BIN: "./bin"
+  PROTOC_VERSION: 33.2
+  OS: "{{OS}}"
+  ARCH: "{{ARCH}}"
+  IMAGE_NAME: "tudosm/auth"
+  TAG: "latest"
+  GOOSE_MIGRATION_DIR: "internal/migrations"
+  # Mapping the docker-compose files based on environment
+  COMPOSE_FILES: >-
+    -f docker-compose.yml 
+    {{if eq .ENV "prod"}}-f docker-compose.prod.yml{{end}}
+
+tasks:
+  debug:vars:
+    desc: Print specific variables for debugging
+    cmds:
+      - echo "Current Environment is {{.ENV}} {{.OS}} {{.ARCH}}"
+      - echo "Database String is {{.GOOSE_DBSTRING}}"
+      - echo "Compose file {{.COMPOSE_FILES}}"
+
+  install:lint:
+    desc: Install golangci-lint locally
+    status:
+      - test -f {{.LOCAL_BIN}}/golangci-lint
+    cmds:
+      - mkdir -p {{.LOCAL_BIN}}
+      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b {{.LOCAL_BIN}}
+
+  install:protoc:
+    desc: Download protoc binary locally
+    status:
+      - test -f {{.LOCAL_BIN}}/protoc
+    vars:
+      PROTOC_ARCH: '{{if eq .ARCH "amd64"}}x86_64{{else if eq .ARCH "arm64"}}aarch_64{{else}}{{.ARCH}}{{end}}'
+      PROTOC_OS: '{{if eq .OS "darwin"}}osx{{else if eq .OS "linux"}}linux{{else}}win64{{end}}'
+      URL: https://github.com/protocolbuffers/protobuf/releases/download/v{{.PROTOC_VERSION}}/protoc-{{.PROTOC_VERSION}}-{{.PROTOC_OS}}-{{.PROTOC_ARCH}}.zip
+    cmds:
+      - mkdir -p {{.LOCAL_BIN}} .bin
+      - curl -L {{.URL}} -o protoc.zip
+      - unzip -o protoc.zip bin/protoc include/* -d .
+      - mv -f include {{.LOCAL_BIN}}/include
+      - rm -rf protoc.zip .bin/ include/
+      - chmod +x {{.LOCAL_BIN}}/protoc
+
+  install:goose:
+    desc: Install goose
+    status:
+      - test -f {{.LOCAL_BIN}}/goose
+    cmds:
+      - mkdir -p {{.LOCAL_BIN}}
+      - GOBIN={{.PWD}}/{{.LOCAL_BIN}} go install github.com/pressly/goose/v3/cmd/goose@latest
+
+  install:sqlc:
+    desc: Install SQLc
+    status:
+      - test -f {{.LOCAL_BIN}}/sqlc
+    cmds:
+      - mkdir -p {{.LOCAL_BIN}}
+      - GOBIN={{.PWD}}/{{.LOCAL_BIN}} go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+  install:protoc-plugs:
+    desc: Install project dependencies
+    status:
+      - test -f {{.LOCAL_BIN}}/protoc-gen-go
+      - test -f {{.LOCAL_BIN}}/protoc-gen-go-grpc
+    cmds:
+      - mkdir -p {{.LOCAL_BIN}}
+      - GOBIN={{.PWD}}/{{.LOCAL_BIN}} go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - GOBIN={{.PWD}}/{{.LOCAL_BIN}} go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+  lint:
+    desc: Run linter
+    deps: [install:lint]
+    cmds:
+      - "{{.LOCAL_BIN}}/golangci-lint run ./... --config .golangci.pipeline.yaml"
+
+  build:
+    desc: Build the docker image for the current architecture
+    cmds:
+      - docker build -t {{.IMAGE_NAME}}:{{.TAG}} .
+
+  push:
+    desc: Build and push multi-arch image (Mac/Linux compatible)
+    cmds:
+      - docker buildx build --platform linux/amd64,linux/arm64 -t {{.IMAGE_NAME}}:{{.TAG}} --push .
+
+  generate:
+    desc: Generates all files
+    deps: [gen:grpc, gen:sqlc]
+
+  gen:grpc:
+    desc: Generates gRPC auth API
+    deps: [install:protoc, install:protoc-plugs]
+    sources:
+      - api/auth_v1/auth.proto
+      # ...against these files. If sources are newer, it runs.
+    generates:
+      - pkg/auth_v1/auth.pb.go
+      - pkg/auth_v1/auth_grpc.pb.go
+    cmds:
+      - mkdir -p pkg/auth_v1
+      - |
+        PATH="{{.PWD}}/{{.LOCAL_BIN}}:$PATH" {{.LOCAL_BIN}}/protoc --proto_path api/auth_v1 \
+          --go_out=pkg/auth_v1 --go_opt=paths=source_relative \
+          --plugin=protoc-gen-go=bin/protoc-gen-go \
+          --go-grpc_out=pkg/auth_v1 --go-grpc_opt=paths=source_relative \
+          --plugin=protoc-gen-go-grpc=bin/protoc-gen-go-grpc \
+          api/auth_v1/auth.proto
+
+  build:app:
+    desc: Builds the binary to test build
+    cmds:
+      - go build -o ./bin/ -v ./...
+
+  docker:up:
+    desc: Start local containers (default)
+    cmds:
+      - docker compose up -d
+
+  docker:down:
+    desc: Stop local containers
+    cmds:
+      - docker compose down
+
+  docker:build:
+    desc: Build local docker image
+    cmds:
+      - docker build -t {{.IMAGE_NAME}}:local .
+
+  docker:login:
+    desc: Login to Docker Hub
+    cmds:
+      - docker login
+
+  docker:push:
+    desc: Build and push multi-arch image to registry
+    cmds:
+      - docker buildx build --platform linux/amd64 -t {{.IMAGE_NAME}}:{{.TAG}} --push .
+
+  docker:prod:up:
+    desc: Start production stack
+    cmds:
+      - docker compose {{.COMPOSE_FILES}} pull
+      - docker compose {{.COMPOSE_FILES}} up -d --force-recreate
+
+  docker:prod:down:
+    desc: Stop production-like stack
+    cmds:
+      - docker compose {{.COMPOSE_FILES}} down
+
+  # --- MIGRATIONS GROUP ---
+  migrate:create:
+    desc: Create a new migration file via script
+    cmds:
+      - chmod +x ./scripts/migrations/create.sh
+      - sh ./scripts/migrations/create.sh
+
+  migrate:up:
+    desc: Run migrations locally (Host-based)
+    cmds:
+      - goose -dir {{.GOOSE_MIGRATION_DIR}} up
+
+  migrate:down:
+    desc: Rollback last migration locally (Host-based)
+    cmds:
+      - goose -dir {{.GOOSE_MIGRATION_DIR}} down
+
+  # --- APP/GEN GROUP ---
+  run:server:
+    desc: Run Go server locally
+    cmds:
+      - go run ./cmd/server/main.go
+
+  run:client:
+    desc: Run Go client locally
+    cmds:
+      - go run ./cmd/client/main.go
+
+  gen:sqlc:
+    desc: Generate SQLC code
+    deps: [install:sqlc]
+    sources:
+      - internal/sqlc.yaml
+      - internal/migrations/*.sql
+    generates:
+      - internal/db/*.go
+    cmds:
+      - "{{.LOCAL_BIN}}/sqlc generate -f ./internal/sqlc.yaml"
+
+  clean:
+    desc: Remove all generated files and the bin folder
+    cmds:
+      - rm -rf pkg/auth_v1/*.go
+      - rm -rf {{.LOCAL_BIN}}
+      - rm -rf .task/
+
+  # test
+  test:
+    desc: Runs all tests
+    cmds:
+      - go test -v ./...

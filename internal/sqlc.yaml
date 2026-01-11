@@ -1,0 +1,34 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "query.sql"
+    schema: "./migrations"
+    gen:
+      go:
+        package: "auth"
+        out: "auth"
+        sql_package: "pgx/v5"
+        output_files_suffix: ".gen"
+        output_db_file_name: "db.gen.go"
+        output_models_file_name: "models.gen.go"
+        output_querier_file_name: "querier.gen.go"
+        overrides:
+          # UUID
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+
+          # TIMESTAMP WITHOUT TIME ZONE
+          - db_type: "timestamp"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "*Time"
+
+          # TIMESTAMP WITH TIME ZONE (recommended)
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "*Time"
