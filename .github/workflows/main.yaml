@@ -111,6 +111,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: GOOSE_DBSTRING,GOOSE_DRIVER,PORT,DOCKER_TAG
           script: |
+            set -e
             cd /home/${{ secrets.REMOTE_USER }}/auth
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             echo "GOOSE_DBSTRING=\"$GOOSE_DBSTRING\"" > .env.prod
